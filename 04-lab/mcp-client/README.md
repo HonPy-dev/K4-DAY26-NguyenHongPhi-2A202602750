@@ -14,7 +14,7 @@ AI agent built with **Google Agent Development Kit (ADK)** that uses tools from 
                                                              ▼
                                                    ┌─────────────────────┐
                                                    │  MCP Server         │
-                                                   │  localhost:8085/mcp │
+                                                   │ 127.0.0.1:18085/mcp │
                                                    │  FastMCP + Tools    │
                                                    └─────────────────────┘
                                                              │
@@ -36,37 +36,39 @@ AI agent built with **Google Agent Development Kit (ADK)** that uses tools from 
 
 ## Quick Start
 
+Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/getting-started/installation/). Create a [WeatherAPI key](https://www.weatherapi.com/) for live weather results and a [DeepSeek API key](https://platform.deepseek.com/api_keys) for agent chat.
+
 ### 1. Start the MCP Server
 
-```bash
-cd ../mcp-server
-export WEATHERAPI_KEY="your_weatherapi_key"
+```powershell
+cd 04-lab/mcp-server
+uv sync --locked
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+# Set WEATHERAPI_KEY in .env. PORT is set to 18085 by the template.
 uv run python weather.py
 ```
 
-### 2. Setup Environment
+Keep that terminal open. In a second terminal, from the repository root:
 
-```bash
-cd mcp-client
+```powershell
+cd 04-lab/mcp-client
+uv sync --locked
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+# Set DEEPSEEK_API_KEY in .env. MCP_SERVER_URL and DEEPSEEK_MODEL have defaults.
 
-# Create .env file with your Google API key
-# Get free key from: https://aistudio.google.com/apikey
-echo "GOOGLE_API_KEY=your_google_api_key_here" > .env
+# Verify MCP tools without calling DeepSeek
+uv run python smoke_mcp.py Hanoi
+# Or check only MCP discovery and health, without either API key:
+uv run python smoke_mcp.py --health-only
 ```
 
-### 3. Install Dependencies
+### 2. Run the Agent
 
-```bash
-uv sync
-```
-
-### 4. Run the Agent
-
-```bash
+```powershell
 uv run adk web
 ```
 
-### 5. Use the Agent
+### 3. Use the Agent
 
 1. Open browser: http://localhost:8000
 2. Select `weather_agent` from dropdown
@@ -82,8 +84,11 @@ mcp-client/
 ├── weather_agent/
 │   ├── agent.py           # Main agent with MCP connection
 │   └── __init__.py
+├── smoke_mcp.py           # MCP health check and live weather smoke test
 ├── pyproject.toml
-├── .env                   # Environment variables (create this)
+├── uv.lock
+├── .env.example           # Safe-to-commit configuration template
+├── .env                   # Local keys and configuration; do not commit
 └── README.md
 ```
 
@@ -94,7 +99,10 @@ mcp-client/
 In `weather_agent/agent.py`:
 
 ```python
-MCP_SERVER_URL = os.getenv("MCP_SERVER_URL", "http://localhost:8085/mcp")
+from google.adk.models.lite_llm import LiteLlm
+
+MCP_SERVER_URL = os.getenv("MCP_SERVER_URL", "http://127.0.0.1:18085/mcp")
+DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek/deepseek-chat")
 
 connection_params = StreamableHTTPConnectionParams(
     url=MCP_SERVER_URL,
@@ -103,7 +111,7 @@ connection_params = StreamableHTTPConnectionParams(
 
 root_agent = Agent(
     name="weather_agent",
-    model="gemini-2.5-flash",
+    model=LiteLlm(model=DEEPSEEK_MODEL),
     tools=[weather_tools],
 )
 ```
@@ -113,27 +121,25 @@ root_agent = Agent(
 ### Agent won't connect to MCP server
 
 1. **404 errors**: MCP server is not running or wrong port
-   - Ensure the MCP server is running on port 8085
-   - Check `MCP_SERVER_URL` (env var / `.env`, default `http://localhost:8085/mcp`)
+   - Ensure the MCP server is running on port 18085
+   - Check `MCP_SERVER_URL` (env var / `.env`, default `http://127.0.0.1:18085/mcp`)
 
-2. **405 errors**: Port conflict with another application
-   - Check what's running on the port: `lsof -i :8085`
-   - Change port in both server and client if needed
+2. **Connection refused / address already in use**: Server is stopped or the port is occupied
+   - Check whether the server is running on port 18085: `netstat -ano | findstr :18085`
+   - If you choose another port, update `PORT` in `mcp-server/.env` and the port in `MCP_SERVER_URL` in `mcp-client/.env`
 
 3. **Timeout errors**: Server not started
    - Start the MCP server first, then the ADK client
 
-### Fallback Mode
+### MCP Smoke Check
 
-If MCP connection fails, the agent runs in fallback mode without tools.
-Fix the connection and restart ADK web.
+Run `uv run python smoke_mcp.py Hanoi` from this directory to check the MCP
+connection and live weather tool before starting the agent. If it fails, make
+sure the server is running and that both `.env` files use the same port.
 
 ## Environment Variables
 
-Create `.env` file:
-```bash
-GOOGLE_API_KEY=your_gemini_api_key
-```
+Copy `.env.example` to `.env` and set `DEEPSEEK_API_KEY` before starting `adk web`.
 
 ## Resources
 

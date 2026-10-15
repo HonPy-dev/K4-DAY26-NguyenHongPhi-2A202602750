@@ -7,7 +7,7 @@ A weather agent built with Google ADK that connects to an MCP server via Streama
 ```
 ┌─────────────────┐   Streamable HTTP    ┌─────────────────┐      REST       ┌─────────────────┐
 │   ADK Agent     │ ──────────────────── │   MCP Server    │ ─────────────── │  WeatherAPI.com │
-│  (mcp-client)   │   localhost:8085/mcp │  (mcp-server)   │                 │                 │
+│  (mcp-client)   │ 127.0.0.1:18085/mcp │  (mcp-server)   │                 │                 │
 └─────────────────┘                      └─────────────────┘                 └─────────────────┘
 ```
 
@@ -26,19 +26,19 @@ ADK (Agent Development Kit) đóng vai trò **MCP Client**
 ┌─────────────────────────────────────────────────────────────────┐
 │                                                                 │
 │  1. KẾT NỐI tới MCP Server qua Streamable HTTP                  │
-│     StreamableHTTPConnectionParams(url="localhost:8085/mcp")    │
+│     StreamableHTTPConnectionParams(url="http://127.0.0.1:18085/mcp") │
 │                                                                 │
 │  2. KHÁM PHÁ tools tự động (list_tools)                         │
 │     McpToolset → tự hỏi server "anh có tool gì?"                │
 │     → nhận về: get_current_weather, get_forecast, health_check  │
 │                                                                 │
-│  3. TRUYỀN tools cho LLM (Gemini)                               │
-│     Agent(model="gemini-2.5-flash", tools=[weather_tools])      │
-│     → Gemini biết nó có thể gọi 3 tools trên                    │
+│  3. TRUYỀN tools cho LLM (DeepSeek)                             │
+│     Agent(model=LiteLlm("deepseek/deepseek-chat"), ...)         │
+│     → DeepSeek biết nó có thể gọi 3 tools trên                  │
 │                                                                 │
 │  4. ĐIỀU PHỐI vòng lặp Function Calling                         │
-│     User hỏi → Gemini chọn tool → ADK gọi MCP Server            │
-│     → nhận kết quả → đưa lại cho Gemini tổng hợp                │
+│     User hỏi → DeepSeek chọn tool → ADK gọi MCP Server          │
+│     → nhận kết quả → đưa lại cho DeepSeek tổng hợp              │
 │                                                                 │
 │  5. CUNG CẤP giao diện web (adk web)                            │
 │     → http://localhost:8000 để chat với agent                   │
@@ -50,29 +50,36 @@ So với bài 02 (viết client thủ công bằng `mcp.ClientSession`), ADK gi�
 
 ## Setup
 
+Open two terminals from the repository root. You need Python 3.12+ and [uv](https://docs.astral.sh/uv/getting-started/installation/). Create API keys for [WeatherAPI](https://www.weatherapi.com/) and [DeepSeek](https://platform.deepseek.com/api_keys). The health-only check needs neither key; the full weather check needs WeatherAPI but does not call an LLM; agent chat needs DeepSeek.
+
 ### 1. MCP Server
 
 ```bash
-cd mcp-server
-uv sync
+cd 04-lab/mcp-server
+uv sync --locked
+# Copy the template only if .env does not already exist, then set WEATHERAPI_KEY:
+# PowerShell: if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+# macOS/Linux: test -f .env || cp .env.example .env
 
-# Set your WeatherAPI key (get one free at https://weatherapi.com)
-export WEATHERAPI_KEY="your_weatherapi_key"
-
-# Start the server (runs on port 8085 by default)
+# Start the server on port 18085
 uv run python weather.py
 ```
 
-The server will be available at `http://localhost:8085/mcp`.
+The server will be available at `http://127.0.0.1:18085/mcp`.
 
 ### 2. ADK Agent (Client)
 
 ```bash
-cd mcp-client
-uv sync
+cd 04-lab/mcp-client
+uv sync --locked
+# Copy the template only if .env does not already exist, then set DEEPSEEK_API_KEY:
+# PowerShell: if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+# macOS/Linux: test -f .env || cp .env.example .env
 
-# Create .env file with your Gemini API key
-echo "GOOGLE_API_KEY=your_gemini_api_key" > .env
+# Verify MCP tools without calling DeepSeek
+uv run python smoke_mcp.py Hanoi
+# To check only MCP discovery and health, without either API key:
+uv run python smoke_mcp.py --health-only
 
 # Start ADK web interface
 uv run adk web
@@ -85,6 +92,7 @@ Open http://localhost:8000 in your browser, select `weather_agent`, and ask abou
 | Variable | Where | Description |
 |----------|-------|-------------|
 | `WEATHERAPI_KEY` | mcp-server | API key from weatherapi.com |
-| `GOOGLE_API_KEY` | mcp-client/.env | Gemini API key |
-| `PORT` | mcp-server (env) | Override server port (default: 8085) |
-| `MCP_SERVER_URL` | mcp-client/.env | MCP endpoint the agent connects to (default: `http://localhost:8085/mcp`; set to your Cloud Run URL + `/mcp` when deployed) |
+| `DEEPSEEK_API_KEY` | mcp-client/.env | DeepSeek API key |
+| `DEEPSEEK_MODEL` | mcp-client/.env | LiteLLM model name (default: `deepseek/deepseek-chat`) |
+| `PORT` | mcp-server/.env | Local server port (`18085`; if changed, update the client URL to match) |
+| `MCP_SERVER_URL` | mcp-client/.env | MCP endpoint the agent connects to (default: `http://127.0.0.1:18085/mcp`; set to your Cloud Run URL + `/mcp` when deployed) |

@@ -1,11 +1,19 @@
 from typing import Any
 import asyncio
 import httpx
+import logging
 import os
+from dotenv import load_dotenv
 from mcp.server.fastmcp import FastMCP
 
+load_dotenv()
+
+# httpx logs full request URLs at INFO; WeatherAPI sends its key as a query
+# parameter, so keep those URLs out of local logs and the ADK terminal.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
 # Initialize FastMCP server
-port = int(os.getenv("PORT", 8085))
+port = int(os.getenv("PORT", 18085))
 mcp = FastMCP("weather", host="0.0.0.0", port=port)
 
 # Constants
@@ -66,9 +74,12 @@ async def get_current_weather(city: str) -> str:
 
     current = data["current"]
     location = data["location"]
+    place = ", ".join(
+        part for part in (location.get("name"), location.get("region"), location.get("country")) if part
+    )
     
     return f"""
-Current Weather for {location['name']}, {location['region']}, {location['country']}:
+Current Weather for {place}:
 
 Temperature: {current['temp_c']}°C ({current['temp_f']}°F)
 Feels like: {current['feelslike_c']}°C ({current['feelslike_f']}°F)
@@ -91,7 +102,7 @@ async def get_forecast(city: str, days: int = 3) -> str:
         days: Number of days to forecast (1-3 for free tier, max 10 for paid)
     """
     # Limit days to 3 for free tier
-    days = min(days, 3)
+    days = min(max(days, 1), 3)
     
     params = {
         "q": city,
@@ -109,9 +120,12 @@ async def get_forecast(city: str, days: int = 3) -> str:
 
     location = data["location"]
     forecast_days = data["forecast"]["forecastday"]
+    place = ", ".join(
+        part for part in (location.get("name"), location.get("region"), location.get("country")) if part
+    )
     
     forecasts = []
-    forecasts.append(f"Weather Forecast for {location['name']}, {location['region']}, {location['country']}:")
+    forecasts.append(f"Weather Forecast for {place}:")
     
     for day in forecast_days:
         day_data = day["day"]
@@ -135,8 +149,8 @@ async def health_check() -> str:
     """Health check endpoint for deployment verification."""
     return "✅ Weather MCP Server is running! Ready to provide weather data for Australian cities and worldwide."
 
-print("✅ MCP server initialized with Streamable HTTP transport")
-print("🔧 Available tools: get_current_weather, get_forecast, health_check")
+print("[OK] MCP server initialized with Streamable HTTP transport")
+print("[INFO] Available tools: get_current_weather, get_forecast, health_check")
 
 if __name__ == "__main__":
     import sys
@@ -145,8 +159,11 @@ if __name__ == "__main__":
     is_standalone = len(sys.argv) == 1 and sys.stdin.isatty()
     
     if is_cloud_run or is_standalone:
-        print(f"🚀 Starting MCP server on http://0.0.0.0:{port}/mcp")
-        mcp.run(transport="streamable-http")
+        print(f"[START] MCP server on http://0.0.0.0:{port}/mcp")
+        try:
+            mcp.run(transport="streamable-http")
+        except KeyboardInterrupt:
+            print("[STOP] MCP server stopped")
     else:
         print("Starting FastMCP server in stdio mode for local client", file=sys.stderr)
         mcp.run()

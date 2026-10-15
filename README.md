@@ -1,5 +1,9 @@
 # Phân biệt MCP và Function Calling
 
+**Lab submission:** K4-DAY26-NguyenHongPhi-2A202602750
+**Sinh viên:** Nguyễn Hồng Phi
+**MSSV:** 2A202602750
+
 Đây là hai khái niệm hay bị nhầm lẫn nhưng thực ra ở **hai tầng khác nhau**, và **bổ sung cho nhau** chứ không thay thế.
 
 ## Cấu trúc repo
@@ -32,6 +36,17 @@ day26-mcp/
     ├── mcp-server/          ← FastMCP server (Streamable HTTP, Dockerfile cho Cloud Run)
     └── mcp-client/          ← ADK agent dùng McpToolset
 ```
+
+## Bằng chứng checkpoint
+
+Ảnh chạy kiểm chứng nằm trong [`screenshots/`](screenshots/), theo đúng tên checkpoint:
+
+- `01-function-calling.png`
+- `02-mcp-client.png`
+- `03a-auth-ok.png`, `03a-auth-fail.png`
+- `03b-registry.png`
+- `03c-versioning.png`
+- `04-verify-setup.png`, `04-adk-current.png`, `04-adk-forecast.png`
 
 > Bước 01–03 dùng **MCP Python SDK v2** (`mcp>=2.0`, xem `requirements.txt`).
 > Lab 04 có môi trường riêng (`uv sync` trong từng thư mục).

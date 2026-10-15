@@ -15,9 +15,13 @@ from __future__ import annotations
 import asyncio
 
 import os
+import sys
 
 from mcp import ClientSession
 from mcp.client.streamable_http import create_mcp_http_client, streamable_http_client
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 SERVER_URL = "http://localhost:8000/mcp"
 TOKEN = os.environ.get("MCP_AUTH_TOKEN", "dev-token-abc123")
